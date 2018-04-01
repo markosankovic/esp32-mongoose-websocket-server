@@ -23,4 +23,10 @@ config WIFI_PASS
         help
             Set the WiFi Password to use while connecting to AP.
 
+config WSS_PORT
+    string "WebSocket Server Port"
+    default "7123"
+        help
+            WebSocekt Server Port to bind to.
+
 endmenu
