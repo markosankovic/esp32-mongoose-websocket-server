@@ -3,6 +3,6 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := mongoose-websocket-server
+PROJECT_NAME := esp32-mongoose-websocket-server
 
 include $(IDF_PATH)/make/project.mk
