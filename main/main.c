@@ -11,8 +11,12 @@
 #include "nvs_flash.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
+#include "stdint.h"
 
 #include "../components/mongoose/mongoose.h"
+
+#define DATA_SIZE 16
+#define MSG_DATA_SIZE 32
 
 esp_err_t event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
@@ -24,14 +28,13 @@ static int is_websocket(const struct mg_connection *nc) {
 
 static void broadcast(struct mg_connection *nc, const struct mg_str msg) {
     struct mg_connection *c;
-    char buf[500];
     char addr[32];
+    // char buf[32];
+    // memcpy(buf, msg.p, msg.len);
     mg_sock_addr_to_str(&nc->sa, addr, sizeof(addr), MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT);
-    snprintf(buf, sizeof(buf), "%s %.*s", addr, (int) msg.len, msg.p);
-    printf("%s\n", buf); // local echo
     for (c = mg_next(nc->mgr, NULL); c != NULL; c = mg_next(nc->mgr, c)) {
         if (is_websocket(c)) {
-            mg_send_websocket_frame(c, WEBSOCKET_OP_TEXT, buf, strlen(buf));
+            mg_send_websocket_frame(c, WEBSOCKET_OP_BINARY, msg.p, msg.len);
         }
     }
 }
@@ -96,20 +99,33 @@ void app_main() {
     mg_set_protocol_http_websocket(nc);
     printf("Started on port %s\n", CONFIG_WSS_PORT);
 
-    srand(time(NULL));
-    int r;
-    char s[10];
-
     gpio_set_direction(CONFIG_BLINK_GPIO, GPIO_MODE_OUTPUT);
     int level = 0;
+    int val1 = 0;
+    int val2 = 0;
     while (true) {
+        int i;
         mg_mgr_poll(&mgr, 500);
         gpio_set_level(CONFIG_BLINK_GPIO, level);
-        r = rand() % 100;
-        sprintf(s, "%d", r);
-        broadcast(nc, mg_mk_str(s));
+        val1 += 32;
+        val2 -= 64;
+        const int16_t data[DATA_SIZE] = {val1, val2, 1024, 2048, 4096, 8192, 16384, 32767, 0, 0, 0, 0, 0, 0, 0, 0};
+        char msg_data[MSG_DATA_SIZE];
+        for (i = 0; i < DATA_SIZE; i++) {
+            msg_data[i*2] = data[i] &0xFF;
+            msg_data[i*2+1] = (data[i] >> 8) & 0xFF;
+        }
+        for (i = 0; i < MSG_DATA_SIZE; i++) {
+            printf("%d ", msg_data[i]);
+        }
+        printf("\n");
+        const struct mg_str msg = {
+            .p = msg_data,
+            .len = MSG_DATA_SIZE
+        };
+        broadcast(nc, msg);
         level = !level;
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        // vTaskDelay(pdMS_TO_TICKS(100));
     }
     mg_mgr_free(&mgr);
 }
